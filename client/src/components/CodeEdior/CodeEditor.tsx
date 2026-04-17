@@ -15,17 +15,23 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
-// Helper: Map UI language names to Piston language identifiers
-const getPistonLanguage = (language: string): "cpp" | "javascript" | "typescript" | "python3" | "java" => {
-  const languageMap: { [key: string]: "cpp" | "javascript" | "typescript" | "python3" | "java" } = {
-    "C++": "cpp",
-    "JavaScript": "javascript",
-    "TypeScript": "typescript",
-    "Python": "python3",
-    "Java": "java",
-  };
-  return languageMap[language] as "cpp" | "javascript" | "typescript" | "python3" | "java";
-};
+type PistonLanguage = "cpp" | "javascript" | "typescript" | "python3" | "java";
+type MonacoLanguage = "cpp" | "javascript" | "typescript" | "python" | "java";
+
+const LANGUAGE_OPTIONS: Array<{
+  label: string;
+  piston: PistonLanguage;
+  monaco: MonacoLanguage;
+}> = [
+  { label: "C++", piston: "cpp", monaco: "cpp" },
+  { label: "JavaScript", piston: "javascript", monaco: "javascript" },
+  { label: "TypeScript", piston: "typescript", monaco: "typescript" },
+  { label: "Python", piston: "python3", monaco: "python" },
+  { label: "Java", piston: "java", monaco: "java" },
+];
+
+const getLanguageConfig = (languageLabel: string) =>
+  LANGUAGE_OPTIONS.find((lang) => lang.label === languageLabel);
 
 interface File {
   name: string;
@@ -55,9 +61,12 @@ export default function CodeEditor() {
 
   const handleRunCode = () => {
     const currentFile = files[activeFile];
-    // Map the UI language to Piston language id
-    const pistonLanguage = getPistonLanguage(currentFile.language);
-    runCode(currentFile.content, pistonLanguage, input);
+    const config = getLanguageConfig(currentFile.language);
+    if (!config) {
+      alert("Selected language is not supported yet.");
+      return;
+    }
+    runCode(currentFile.content, config.piston, input);
   };
 
   const handleShare = () => {
@@ -66,6 +75,7 @@ export default function CodeEditor() {
     navigator.clipboard.writeText(shareableContent);
     alert("Code copied to clipboard!");
   };
+
 
   return (
     <div className="flex flex-col h-screen bg-zinc-900 text-zinc-100">
@@ -76,9 +86,9 @@ export default function CodeEditor() {
             <SelectValue placeholder="Select Language" />
           </SelectTrigger>
           <SelectContent className="bg-zinc-900 text-white border-zinc-700">
-            {["C++", "C", "JavaScript", "TypeScript", "Python", "Java", "Go", "C#"].map((lang) => (
-              <SelectItem key={lang} value={lang}>
-                {lang}
+            {LANGUAGE_OPTIONS.map((lang) => (
+              <SelectItem key={lang.label} value={lang.label}>
+                {lang.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -113,7 +123,7 @@ export default function CodeEditor() {
               >
                 <Editor
                   height="100%"
-                  language={getPistonLanguage(file.language)}
+                  language={getLanguageConfig(file.language)?.monaco}
                   value={file.content}
                   onChange={(value) => {
                     const updatedFiles = [...files];

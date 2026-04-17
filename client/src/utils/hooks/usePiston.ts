@@ -1,59 +1,53 @@
 import { useState } from "react";
 
-// Use the provided language versions
-export const LANGUAGE_VERSIONS = {
-  javascript: "18.15.0",
-  typescript: "5.0.3",
-  python3: "3.10.0", // Piston uses "python3" for Python.
-  java: "15.0.2",
-  cpp: "10.2.0",
+type LanguageKey = "javascript" | "typescript" | "python3" | "java" | "cpp";
+
+// Judge0 CE language IDs (https://judge0.com/)
+const LANGUAGE_IDS: Record<LanguageKey, number> = {
+  javascript: 63, // Node.js 14.15.4
+  typescript: 74, // TypeScript 3.7.4
+  python3: 71, // Python 3.8.1
+  java: 62, // OpenJDK 13.0.1
+  cpp: 54, // C++ (GCC 9.2.0)
 };
 
-const PISTON_API = "https://emkc.org/api/v2/piston/execute";
-
-/**
- * Returns the valid runtime version for the given language.
- * Expects the language parameter to be one of the Piston identifiers
- * (e.g. "javascript", "typescript", "python3", "java", "cpp").
- */
-const getVersionForLanguage = (language: keyof typeof LANGUAGE_VERSIONS): string => {
-  return LANGUAGE_VERSIONS[language] || "18.15.0";
-};
+const JUDGE0_API_URL =
+  import.meta.env.VITE_JUDGE0_API_URL || "https://ce.judge0.com";
 
 export const usePiston = () => {
   const [output, setOutput] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const runCode = async (code: string, language: keyof typeof LANGUAGE_VERSIONS, input: string) => {
+  const runCode = async (code: string, language: LanguageKey, input: string) => {
     setIsLoading(true);
     setOutput("");
     setError("");
 
     try {
-      const version = getVersionForLanguage(language);
+      const languageId = LANGUAGE_IDS[language];
+      if (!languageId) {
+        throw new Error("Unsupported language.");
+      }
 
       const body = {
-        language, // e.g., "python3", "javascript", "cpp", etc.
-        version,  // Use our helper to get the proper version string
-        files: [
-          {
-            // The filename is arbitrary; you may adjust the extension if desired.
-            name: `main.${language}`,
-            content: code,
-          },
-        ],
+        language_id: languageId,
+        source_code: code,
         stdin: input,
-        args: [],
       };
 
-      const response = await fetch(PISTON_API, {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      const response = await fetch(
+        `${JUDGE0_API_URL}/submissions?base64_encoded=false&wait=true`,
+        {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(body),
-      });
+        }
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -62,9 +56,12 @@ export const usePiston = () => {
 
       const result = await response.json();
 
-      // Piston returns the run output under result.run.output
-      if (result.run && result.run.output) {
-        setOutput(result.run.output);
+      if (result.stdout) {
+        setOutput(result.stdout);
+      } else if (result.stderr) {
+        setError(result.stderr);
+      } else if (result.compile_output) {
+        setError(result.compile_output);
       } else {
         setError("No output received.");
       }

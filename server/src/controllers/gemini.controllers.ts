@@ -103,27 +103,61 @@ const generateQuestions = async (
 
   Ensure the questions are relevant and aligned with the provided technologies. Use a balanced mix of difficulty levels appropriate for the experience level. Provide example inputs and outputs for practical tasks when needed. Important: Return only the JSON format in your response with no extra text or explanations.`;
 
-  try {
-    const response = await axios.post(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent",
-      {
-        contents: [{ parts: [{ text: prompt }] }],
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-        params: {
-          key: process.env.GEMINI_API_KEY,
-        },
-      }
-    );
+  const endpoint =
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent";
 
+  const maxRetries = Number(process.env.GEMINI_MAX_RETRIES || 3);
+  const baseDelayMs = Number(process.env.GEMINI_BASE_DELAY_MS || 800);
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const postWithRetry = async () => {
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      try {
+        return await axios.post(
+          endpoint,
+          {
+            contents: [{ parts: [{ text: prompt }] }],
+          },
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+            params: {
+              key: process.env.GEMINI_API_KEY,
+            },
+          }
+        );
+      } catch (error: any) {
+        const status = error?.response?.status;
+        const isRetryable = status === 429 || status === 503;
+
+        if (!isRetryable || attempt === maxRetries) {
+          throw error;
+        }
+
+        const jitter = Math.floor(Math.random() * 250);
+        const backoff = baseDelayMs * Math.pow(2, attempt) + jitter;
+        await sleep(backoff);
+      }
+    }
+
+    throw new Error("Failed to reach Gemini after retries");
+  };
+
+  try {
+    const response = await postWithRetry();
     const responseData = response.data.candidates[0].content.parts[0].text;
-    return extractAndParseJSONQuestion(responseData) || { questions: [] };
+    const parsed = extractAndParseJSONQuestion(responseData);
+
+    if (!parsed || !Array.isArray(parsed.questions) || parsed.questions.length === 0) {
+      throw new Error(`No valid ${category} questions returned from Gemini`);
+    }
+
+    return parsed;
   } catch (error: any) {
     console.error(`Error generating ${category} questions:`, error.message);
-    return { questions: [] };
+    throw error;
   }
 };
 
@@ -170,12 +204,16 @@ export const GenerateIntervieQuestions = async (
   }
 
   try {
-    const [dsaQuestions, techStackQuestions, coreSubjectQuestions] =
-      await Promise.all([
-        generateDSAQuestions(interviewID, userId),
-        generateTechStackQuestions(interviewID, userId, skills),
-        generateCoreSubjectQuestions(interviewID, userId),
-      ]);
+    const dsaQuestions = await generateDSAQuestions(interviewID, userId);
+    const techStackQuestions = await generateTechStackQuestions(
+      interviewID,
+      userId,
+      skills
+    );
+    const coreSubjectQuestions = await generateCoreSubjectQuestions(
+      interviewID,
+      userId
+    );
 
     const mergedQuestions = {
       dsaQuestions: dsaQuestions.questions || [],
@@ -186,7 +224,13 @@ export const GenerateIntervieQuestions = async (
     return res.status(200).json(mergedQuestions);
   } catch (error: any) {
     console.error("Error generating interview questions:", error.message);
-    return res.status(500).json({ error: "Internal server error" });
+    const statusCode = error?.response?.status === 429 ? 429 : 500;
+    const errorMessage =
+      statusCode === 429
+        ? "Question generation is temporarily rate-limited. Please try again in a minute."
+        : "Failed to generate interview questions.";
+
+    return res.status(statusCode).json({ error: errorMessage });
   }
 };
 

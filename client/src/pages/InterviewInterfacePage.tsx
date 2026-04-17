@@ -57,10 +57,19 @@ const InterviewInterfacePage = () => {
           throw new Error("Failed to generate questions - no data received");
         }
 
-        // Update interview data with generated questions
-        interviewData.dsaQuestions = questionsData.dsaQuestions || [];
-        interviewData.coreSubjectQuestions = questionsData.coreSubjectQuestions || [];
-        interviewData.technicalQuestions = questionsData.techStackQuestions || [];
+        // Preserve existing questions if generation fails to return any.
+        interviewData.dsaQuestions =
+          questionsData.dsaQuestions?.length > 0
+            ? questionsData.dsaQuestions
+            : interviewData.dsaQuestions || [];
+        interviewData.coreSubjectQuestions =
+          questionsData.coreSubjectQuestions?.length > 0
+            ? questionsData.coreSubjectQuestions
+            : interviewData.coreSubjectQuestions || [];
+        interviewData.technicalQuestions =
+          questionsData.techStackQuestions?.length > 0
+            ? questionsData.techStackQuestions
+            : interviewData.technicalQuestions || [];
         interviewData.overallRating = 0;
         interviewData.overallReview = "";
 
@@ -78,8 +87,40 @@ const InterviewInterfacePage = () => {
         console.error("Error details:", error);
         console.error("Error message:", error?.message);
         console.error("Error response:", error?.response?.data);
-        
-        const errorMessage = error?.response?.data?.error || error?.message || "Failed to start interview. Please try again.";
+
+        const errorMessage =
+          error?.response?.data?.error ||
+          error?.message ||
+          "Failed to start interview. Please try again.";
+
+        // If generation fails (e.g., rate limit), keep the interview usable with existing saved questions.
+        if (id) {
+          try {
+            const existingInterview = await getInterviewByID(id);
+            if (existingInterview) {
+              const hasAnyQuestions =
+                (existingInterview.dsaQuestions?.length || 0) > 0 ||
+                (existingInterview.technicalQuestions?.length || 0) > 0 ||
+                (existingInterview.coreSubjectQuestions?.length || 0) > 0;
+
+              if (hasAnyQuestions) {
+                setInterviewData(existingInterview);
+                enterFullScreen();
+                setLoading(false);
+
+                const warningNotification: Notification = {
+                  id: Date.now().toString(),
+                  type: "error",
+                  message: `${errorMessage} Showing last saved questions.`,
+                };
+                addNotification(warningNotification);
+                return;
+              }
+            }
+          } catch (fallbackError) {
+            console.error("Failed fallback to existing interview questions:", fallbackError);
+          }
+        }
         
         const newNotification: Notification = {
           id: Date.now().toString(),
