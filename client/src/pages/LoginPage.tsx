@@ -57,6 +57,15 @@ export function LoginPage({
   };
 
   const handleGoogleSigin = async () => {
+      if (!auth || !googleProvider) {
+        addNotification({
+          id: Date.now().toString(),
+          type: "error",
+          message: "Google login is not configured. Add Firebase VITE env variables in Vercel.",
+        });
+        return;
+      }
+
       try {
         const result = await signInWithPopup(auth, googleProvider);
         // console.log((result as any)._tokenResponse);

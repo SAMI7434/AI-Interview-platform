@@ -32,6 +32,15 @@ export function SignupPage({
   const { addNotification } = useNotification();
 
   const handleGoogleSignup = async () => {
+    if (!auth || !googleProvider) {
+      addNotification({
+        id: Date.now().toString(),
+        type: "error",
+        message: "Google signup is not configured. Add Firebase VITE env variables in Vercel.",
+      });
+      return;
+    }
+
     try {
       const result = await signInWithPopup(auth, googleProvider);
       // console.log((result as any)._tokenResponse);
