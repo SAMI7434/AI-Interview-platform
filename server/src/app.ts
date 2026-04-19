@@ -34,6 +34,11 @@ const isAllowedOrigin = (origin: string): boolean => {
     return true;
   }
 
+  // Allow common hosted frontend domains when explicit env configuration is missing.
+  if (/^https:\/\/[a-z0-9-]+\.(onrender\.com|netlify\.app)$/i.test(origin)) {
+    return true;
+  }
+
   return false;
 };
 
