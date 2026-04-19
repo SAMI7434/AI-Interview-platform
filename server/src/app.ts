@@ -62,11 +62,14 @@ const corsOptions = {
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  maxAge: 86400,
   optionsSuccessStatus: 204,
 };
 
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
+app.options("/api/users/login", cors(corsOptions));
+app.options("/api/users/register", cors(corsOptions));
 app.use(cookieParser());
 app.use(express.static("./public"));
 app.use(express.json()); //To parse incoming JSON requests;
