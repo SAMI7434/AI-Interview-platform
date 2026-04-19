@@ -1,5 +1,5 @@
 const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
-const defaultProdApiBaseUrl = "https://ai-interview-platform-y4fq.onrender.com";
+const defaultLocalApiBaseUrl = "http://localhost:5000";
 
 const isBrowser = typeof window !== "undefined";
 const isLocalHost = isBrowser
@@ -7,7 +7,7 @@ const isLocalHost = isBrowser
   : false;
 
 export const getApiBaseUrl = (): string => {
-  const resolvedBaseUrl = rawApiBaseUrl || (!isLocalHost ? defaultProdApiBaseUrl : "");
+  const resolvedBaseUrl = rawApiBaseUrl || (isLocalHost ? defaultLocalApiBaseUrl : "");
 
   if (!resolvedBaseUrl) {
     throw new Error("VITE_API_BASE_URL is missing. Set it in your environment variables.");
