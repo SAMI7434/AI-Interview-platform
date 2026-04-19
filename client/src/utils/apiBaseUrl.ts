@@ -1,5 +1,5 @@
 const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
-const defaultProdApiBaseUrl = "https://ai-interview-platform-o3sw.onrender.com";
+const defaultProdApiBaseUrl = "https://ai-interview-platform-y4fq.onrender.com";
 
 const isBrowser = typeof window !== "undefined";
 const isLocalHost = isBrowser
