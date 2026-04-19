@@ -17,47 +17,53 @@ const app = express();
 const allowedOrigins = (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || "")
   .split(",")
   .map((origin) => origin.trim())
+  .map((origin) => origin.replace(/\/$/, "").toLowerCase())
   .filter(Boolean);
 
+const normalizeOrigin = (origin: string): string => origin.trim().replace(/\/$/, "").toLowerCase();
+
 const isAllowedOrigin = (origin: string): boolean => {
-  if (allowedOrigins.includes(origin)) {
+  const normalizedOrigin = normalizeOrigin(origin);
+
+  if (allowedOrigins.includes(normalizedOrigin)) {
     return true;
   }
 
   // Allow localhost during development if not explicitly configured.
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalizedOrigin)) {
     return true;
   }
 
   // Allow Vercel deployments to reduce CORS deployment friction.
-  if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) {
+  if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(normalizedOrigin)) {
     return true;
   }
 
   // Allow common hosted frontend domains when explicit env configuration is missing.
-  if (/^https:\/\/[a-z0-9-]+\.(onrender\.com|netlify\.app)$/i.test(origin)) {
+  if (/^https:\/\/[a-z0-9-]+\.(onrender\.com|netlify\.app)$/.test(normalizedOrigin)) {
     return true;
   }
 
   return false;
 };
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) {
-        return callback(null, true);
-      }
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
+    if (!origin) {
+      return callback(null, true);
+    }
 
-      if (isAllowedOrigin(origin)) {
-        return callback(null, true);
-      }
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
 
-      return callback(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-  })
-);
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(cookieParser());
 app.use(express.static("./public"));
 app.use(express.json()); //To parse incoming JSON requests;
