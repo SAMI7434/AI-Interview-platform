@@ -1,9 +1,20 @@
 import bcrypt from "bcryptjs";
-import { Request, Response } from "express";
+import { CookieOptions, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { UserModel } from "../models/user.model";
 import { validationResult } from "express-validator";
 import admin from "../firebase/firebase";
+
+const getAuthCookieOptions = (): CookieOptions => {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+    maxAge: 18000000,
+  };
+};
 
 export const getUser = async (req: Request, res: Response) => {
   try {
@@ -56,16 +67,11 @@ export const registerUser = async (req: Request, res: Response) => {
     await user.save();
 
     // Generate a JWT token
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET as string, {
+    const token = jwt.sign({ user: { id: user._id } }, process.env.JWT_SECRET as string, {
       expiresIn: "1h",
     });
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // Set to true in production
-      sameSite: "strict",
-      maxAge: 18000000,
-    });
+    res.cookie("token", token, getAuthCookieOptions());
     // Send response
     return res.status(201).json({
       message: "User registered successfully",
@@ -192,8 +198,8 @@ export const logOutUser = async (
 ): Promise<Response> => {
   res.clearCookie("token", {
     httpOnly: true,
-    secure: true,
-    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   });
   return Promise.resolve(
     res.status(200).json({ message: "Logged out successfully" })
@@ -206,12 +212,7 @@ const generateAndSendToken = (res: Response, userId: string): Response => {
 
   try {
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "5h" });
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 18000000,
-    });
+    res.cookie("token", token, getAuthCookieOptions());
     return res.json({ message: "User Logged in Successfully" });
   } catch (err) {
     console.error("JWT Sign Error:", err);
