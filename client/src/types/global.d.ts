@@ -17,3 +17,5 @@ export interface Interview {
   technicalQuestions?: Question[];
   coreSubjectQuestions?: Question[];
 }
+// create express server with basic route
+  
